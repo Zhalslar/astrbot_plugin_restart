@@ -1,0 +1,19 @@
+{
+    "restart_interval": {
+        "description": "重启间隔(秒)",
+        "type": "int",
+        "hint": "每隔多长时间重启一次AstrBot, 填 0 表示不启用间隔重启功能",
+        "default": 0
+    },
+    "restart_time": {
+        "description": "重启时间",
+        "type": "string",
+        "hint": "在固定时间重启AstrBot, 格式为 HH:MM, 留空表示不启用间隔重启功能",
+        "default": "00:00"
+    },
+    "restart_umo":{
+        "description": "重启命令所在的会话",
+        "type": "string",
+        "invisible": true
+    }
+}
