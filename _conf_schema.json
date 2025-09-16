@@ -11,7 +11,12 @@
         "hint": "在固定时间重启AstrBot, 格式为 HH:MM, 留空表示不启用间隔重启功能",
         "default": "00:00"
     },
-    "restart_umo":{
+    "platform_id": {
+        "description": "重启命令所在的平台",
+        "type": "string",
+        "invisible": true
+    },
+    "restart_umo": {
         "description": "重启命令所在的会话",
         "type": "string",
         "invisible": true

@@ -4,15 +4,18 @@ import zoneinfo
 import aiohttp
 from astrbot.api.star import Context, Star, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
-from astrbot import logger
+from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
+    AiocqhttpAdapter,
+)
 
 
-@register("astrbot_plugin_restart", "Zhalslar", "重启", "1.0.0")
+@register("astrbot_plugin_restart", "Zhalslar", "重启", "1.0.1")
 class RestartPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -32,6 +35,7 @@ class RestartPlugin(Star):
             self.host = "127.0.0.1"
         self.restart_url = f"http://{self.host}:{self.port}/api/stat/restart-core"
 
+    async def initialize(self):
         # 创建调度器
         timezone = self.context.get_config().get("timezone")
         try:
@@ -41,7 +45,6 @@ class RestartPlugin(Star):
             target_timezone = None
         self.scheduler = AsyncIOScheduler(timezone=target_timezone)
         self.session = aiohttp.ClientSession()
-
         # 注册任务
         self._register_jobs()
         self.scheduler.start()
@@ -49,25 +52,49 @@ class RestartPlugin(Star):
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
         """平台加载完成时，发送上一轮重启完成的消息"""
-        print("平台加载完成时，发送上一轮重启完成的消息")
-        print(self.config.get("restart_umo"))
-        await asyncio.sleep(5)
-        if restart_umo := self.config.get("restart_umo"):
-            await self.context.send_message(
-                session=restart_umo,
-                message_chain=MessageChain([Plain("AstrBot 重启完成")]),
+        restart_umo = self.config.get("restart_umo")
+        platform_id = self.config.get("platform_id")
+        if not restart_umo or not platform_id:
+            return
+
+        platform = self.context.get_platform_inst(platform_id)
+        if not isinstance(platform, AiocqhttpAdapter):
+            logger.warning("未找到 aiocqhttp 平台实例，跳过重启提示")
+            return
+        client = platform.get_client()
+        if not client:
+            logger.warning("未找到 CQHttp 实例，跳过重启提示")
+            return
+
+        # 等待 ws 连接完成
+        ws_connected = asyncio.Event()
+
+        @client.on_websocket_connection
+        def _(_):  # 连接成功时触发
+            ws_connected.set()
+
+        try:
+            await asyncio.wait_for(ws_connected.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "等待 aiocqhttp WebSocket 连接超时，可能未能发送重启完成提示。"
             )
+
+        # 连接后再发消息
+        await self.context.send_message(
+            session=restart_umo,
+            message_chain=MessageChain([Plain("AstrBot 重启完成")]),
+        )
         self.config["restart_umo"] = ""
         self.config.save_config()
 
     async def _get_auth_token(self):
         """获取认证token"""
-        # 根据面板配置生成登录数据、 URL
-        username = self.dbc.get("username", "astrbot")
-        password = self.dbc.get("password", "77b90590a8945a7d36c963981a307dc9")
-        login_data = {"username": username, "password": password}
         login_url = f"http://{self.host}:{self.port}/api/auth/login"
-
+        login_data = {
+            "username": self.dbc["username"],
+            "password": self.dbc["password"],
+        }
         async with self.session.post(login_url, json=login_data) as response:
             if response.status == 200:
                 data = await response.json()
@@ -88,8 +115,10 @@ class RestartPlugin(Star):
                     logger.info("✅ 系统重启请求已发送")
                 else:
                     logger.error(f"❌ 重启请求失败，状态码: {response.status}")
+                    raise RuntimeError(f"重启请求失败，状态码: {response.status}")
         except Exception as e:
             logger.error(f"❌ 发送重启请求时出错: {e}")
+            raise e
 
     def _register_jobs(self):
         """根据配置注册定时任务"""
@@ -124,8 +153,13 @@ class RestartPlugin(Star):
     async def restart_system(self, event: AstrMessageEvent):
         """重启astrbot"""
         yield event.plain_result("正在重启AstrBot...")
-        await self.restart_core()
+        try:
+            await self.restart_core()
+        except Exception as e:
+            yield event.plain_result(f"重启失败：{e}")
+            return
         # 会话标记
+        self.config["platform_id"] = event.get_platform_id()
         self.config["restart_umo"] = event.unified_msg_origin
         self.config.save_config()
         logger.info(f"重启会话标记：{self.config['restart_umo']}")
