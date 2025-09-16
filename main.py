@@ -123,7 +123,10 @@ class RestartPlugin(Star):
     def _register_jobs(self):
         """根据配置注册定时任务"""
         # 清理旧任务，避免重复
-        self.scheduler.remove_all_jobs()
+        if self.scheduler.get_job("restart_interval_job"):
+            self.scheduler.remove_job("restart_interval_job")
+        if self.scheduler.get_job("restart_time_job"):
+            self.scheduler.remove_job("restart_time_job")
 
         if self.restart_interval:
             logger.info(f"注册间隔重启任务：每 {self.restart_interval} 秒重启一次")
