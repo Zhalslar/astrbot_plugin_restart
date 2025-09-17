@@ -52,5 +52,4 @@ git clone https://github.com/Zhalslar/astrbot_plugin_restart
 
 ## 📌 注意事项
 
-- 开盒信息在QQ主页也能查看，本插件仅供学习交流，作者不承担任何责任
 - 想第一时间得到反馈的可以来作者的插件反馈群（QQ群）：460973561（不点star不给进）
