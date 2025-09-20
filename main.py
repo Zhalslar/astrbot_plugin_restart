@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import zoneinfo
 import aiohttp
 from astrbot.api.star import Context, Star, register
@@ -14,8 +15,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
     AiocqhttpAdapter,
 )
 
-
-@register("astrbot_plugin_restart", "Zhalslar", "重启", "1.0.1")
+@register("astrbot_plugin_restart", "Zhalslar", "重启", "...")
 class RestartPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -80,12 +80,20 @@ class RestartPlugin(Star):
                 "等待 aiocqhttp WebSocket 连接超时，可能未能发送重启完成提示。"
             )
 
-        # 连接后再发消息
+        # 计算耗时
+        elapsed = time.time() - float(self.config["restart_start_ts"])
+
+        # 发消息
         await self.context.send_message(
             session=restart_umo,
-            message_chain=MessageChain([Plain("AstrBot 重启完成")]),
+            message_chain=MessageChain(
+                [Plain(f"AstrBot重启完成（耗时{elapsed:.2f}秒）")]
+            ),
         )
+
+        # 清理持久化配置
         self.config["restart_umo"] = ""
+        self.config["restart_start_ts"] = 0
         self.config.save_config()
 
     async def _get_auth_token(self):
@@ -156,16 +164,19 @@ class RestartPlugin(Star):
     async def restart_system(self, event: AstrMessageEvent):
         """重启astrbot"""
         yield event.plain_result("正在重启AstrBot...")
+
+        self.config["platform_id"] = event.get_platform_id()
+        self.config["restart_umo"] = event.unified_msg_origin
+        self.config["restart_start_ts"] = time.time()
+        self.config.save_config()
+        logger.info(
+            "手动重启：已记录 platform_id、restart_umo 与 restart_start_ts，准备重启"
+        )
         try:
             await self.restart_core()
         except Exception as e:
             yield event.plain_result(f"重启失败：{e}")
             return
-        # 会话标记
-        self.config["platform_id"] = event.get_platform_id()
-        self.config["restart_umo"] = event.unified_msg_origin
-        self.config.save_config()
-        logger.info(f"重启会话标记：{self.config['restart_umo']}")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("定时重启", alias={"schedule_restart"})
