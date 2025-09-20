@@ -54,7 +54,8 @@ class RestartPlugin(Star):
         """平台加载完成时，发送上一轮重启完成的消息"""
         restart_umo = self.config.get("restart_umo")
         platform_id = self.config.get("platform_id")
-        if not restart_umo or not platform_id:
+        restart_start_ts = self.config.get("restart_start_ts")
+        if not restart_umo or not platform_id or not restart_start_ts:
             return
 
         platform = self.context.get_platform_inst(platform_id)
@@ -81,10 +82,7 @@ class RestartPlugin(Star):
             )
 
         # 计算耗时
-        start_ts = self.config.get("restart_start_ts")
-        if not start_ts or not isinstance(start_ts, (int, float)):
-            return
-        elapsed = time.time() - float(self.config["restart_start_ts"])
+        elapsed = time.time() - float(restart_start_ts)
 
         # 发消息
         await self.context.send_message(
