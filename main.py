@@ -81,6 +81,9 @@ class RestartPlugin(Star):
             )
 
         # 计算耗时
+        start_ts = self.config.get("restart_start_ts")
+        if not start_ts or not isinstance(start_ts, (int, float)):
+            return
         elapsed = time.time() - float(self.config["restart_start_ts"])
 
         # 发消息
