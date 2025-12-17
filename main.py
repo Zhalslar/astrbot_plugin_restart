@@ -16,6 +16,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
 
 from .dashboard_client import DashboardClient
 from .restart_scheduler import RestartScheduler
+from .utils import cron_to_human, get_memory_info
 
 
 class RestartPlugin(Star):
@@ -25,6 +26,7 @@ class RestartPlugin(Star):
         self.config = config
         self.cache: dict[str, Any] = config.get("restart_cache", {})
         self.scheduler: RestartScheduler | None = None
+        self.restart_cron = config.get("restart_cron")
 
     # ================== 生命周期 ==================
 
@@ -70,12 +72,15 @@ class RestartPlugin(Star):
             logger.warning("WebSocket 连接等待超时")
 
         elapsed = time.time() - float(restart_start_ts)
+        msg = f"AstrBot重启完成（耗时{elapsed:.2f}秒）"
+
+        if self.config["show_memory_info"]:
+            memory_info = get_memory_info()
+            msg += f"\n内存：{memory_info}"
 
         await self.context.send_message(
             session=restart_umo,
-            message_chain=MessageChain(
-                [Plain(f"AstrBot重启完成（耗时{elapsed:.2f}秒）")]
-            ),
+            message_chain=MessageChain([Plain(msg)]),
         )
         self.cache["platform_id"] = ""
         self.cache["umo"] = ""
@@ -107,7 +112,9 @@ class RestartPlugin(Star):
         if is_restart:
             self.config["restart_switch"] = True
             self.config.save_config()
-            yield event.plain_result("已开启定时重启")
+            yield event.plain_result(
+                f"已开启定时重启: {cron_to_human(self.config['restart_cron'])}"
+            )
             if self.scheduler:
                 await self.scheduler.start()
         else:
@@ -116,4 +123,3 @@ class RestartPlugin(Star):
             yield event.plain_result("已关闭定时重启")
             if self.scheduler:
                 await self.scheduler.shutdown()
-

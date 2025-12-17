@@ -11,6 +11,11 @@
         "hint": "使用 Cron 表达式（分 时 日 月 周）定义。例如：“0 5 * * *” 表示每天 5:00 重启一次Astrbot",
         "default": "0 5 * * *"
     },
+    "show_memory_info": {
+        "description": "重启完后显示内存使用情况",
+        "type": "bool",
+        "default": true
+    },
     "restart_cache": {
         "description": "重启缓存区",
         "type": "object",
