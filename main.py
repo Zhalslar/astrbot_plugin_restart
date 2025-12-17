@@ -132,6 +132,9 @@ class RestartPlugin(Star):
 
         # 过滤内置插件
         visible = [m for m in sr if not m.reserved]
+        if not visible:
+            yield event.plain_result("暂无插件")
+            return
 
         # 1. 无参数 -> 展示带序号的插件列表（展示名优先）
         if target is None:
@@ -149,7 +152,7 @@ class RestartPlugin(Star):
             if 0 <= idx < len(visible):
                 plugin_key = visible[idx].name
             else:
-                await event.send(event.plain_result("序号超出范围"))
+                yield event.plain_result("序号超出范围")
                 return
 
         elif str(target).lower() == "all":
@@ -162,7 +165,7 @@ class RestartPlugin(Star):
                     plugin_key = meta.name
                     break
             if plugin_key is None:
-                await event.send(event.plain_result("未找到该插件"))
+                yield event.plain_result("未找到该插件")
                 return
 
         # 3. 真正重载

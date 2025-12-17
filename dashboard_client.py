@@ -65,7 +65,7 @@ class DashboardClient:
     ) -> dict[str, Any]:
         """统一网络请求：自动带鉴权、自动续期、自动抛异常"""
         if self._session is None:
-            raise RuntimeError("请使用 async with DashboardClient() 初始化会话")
+            raise RuntimeError("请先用 DashboardClient.initialize() 初始化会话")
 
         token = await self._ensure_token()
         headers = {"Authorization": f"Bearer {token}"}
@@ -86,9 +86,7 @@ class DashboardClient:
             if resp.status != 200:
                 raise RuntimeError(f"请求失败 [{resp.status}]: {await resp.text()}")
 
-            # 面板接口统一返回 {"code":0, "msg":"...", "data":...}
             body = await resp.json()
-            print(body)
             if body.get("status") != "ok":
                 raise RuntimeError(f"业务错误: {body.get('msg')}")
             return body.get("data")
@@ -110,7 +108,7 @@ class DashboardClient:
         dbc = self.context.get_config()["dashboard"]
         payload = {"username": dbc["username"], "password": dbc["password"]}
         if self._session is None:
-            raise RuntimeError("请使用 async with DashboardClient() 初始化会话")
+            raise RuntimeError("请先用 DashboardClient.initialize() 初始化会话")
         async with self._session.post(self.login_url, json=payload) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"登录失败 [{resp.status}]: {await resp.text()}")
