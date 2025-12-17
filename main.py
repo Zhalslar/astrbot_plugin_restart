@@ -24,6 +24,7 @@ class RestartPlugin(Star):
         self.context = context
         self.config = config
         self.cache: dict[str, Any] = config.get("restart_cache", {})
+        self.scheduler: RestartScheduler | None = None
 
     # ================== 生命周期 ==================
 
@@ -88,10 +89,9 @@ class RestartPlugin(Star):
     async def restart_system(self, event: AstrMessageEvent):
         """重启Astrbot"""
         await event.send(event.plain_result("正在重启 AstrBot…"))
-
-        self.config["platform_id"] = event.get_platform_id()
-        self.config["restart_umo"] = event.unified_msg_origin
-        self.config["restart_start_ts"] = time.time()
+        self.cache["platform_id"] = event.get_platform_id()
+        self.cache["umo"] = event.unified_msg_origin
+        self.cache["start_ts"] = time.time()
         self.config.save_config()
 
         await self.dashboard.restart()
@@ -108,10 +108,12 @@ class RestartPlugin(Star):
             self.config["restart_switch"] = True
             self.config.save_config()
             yield event.plain_result("已开启定时重启")
-            await self.scheduler.start()
+            if self.scheduler:
+                await self.scheduler.start()
         else:
             self.config["restart_switch"] = False
             self.config.save_config()
             yield event.plain_result("已关闭定时重启")
-            await self.scheduler.shutdown()
+            if self.scheduler:
+                await self.scheduler.shutdown()
 
