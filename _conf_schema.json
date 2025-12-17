@@ -13,22 +13,20 @@
     },
     "restart_cache": {
         "description": "重启缓存区",
-        "type": "string",
+        "type": "object",
+        "invisible": true,
         "items": {
             "platform_id": {
                 "description": "重启命令所在的平台",
-                "type": "string",
-                "invisible": true
+                "type": "string"
             },
             "umo": {
                 "description": "重启命令所在的会话",
-                "type": "string",
-                "invisible": true
+                "type": "string"
             },
             "start_ts": {
                 "description": "重启命令发送时间",
-                "type": "float",
-                "invisible": true
+                "type": "float"
             }
         }
     }
