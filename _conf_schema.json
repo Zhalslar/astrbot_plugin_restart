@@ -1,29 +1,35 @@
 {
-    "restart_interval": {
-        "description": "重启间隔(秒)",
-        "type": "int",
-        "hint": "每隔多长时间重启一次AstrBot, 填 0 表示不启用间隔重启功能",
-        "default": 0
+    "restart_switch": {
+        "description": "定时重启开关",
+        "hint": "启用后，Astrbot将按照触发周期定时重启。可用命令 “定时重启 开/关”",
+        "type": "bool",
+        "default": true
     },
-    "restart_time": {
-        "description": "重启时间",
+    "restart_cron": {
+        "description": "定时重启的触发周期",
         "type": "string",
-        "hint": "在固定时间重启AstrBot, 格式为 HH:MM, 留空表示不启用间隔重启功能",
-        "default": "00:00"
+        "hint": "使用 Cron 表达式（分 时 日 月 周）定义。例如：“0 5 * * *” 表示每天 5:00 重启一次Astrbot",
+        "default": "0 5 * * *"
     },
-    "platform_id": {
-        "description": "重启命令所在的平台",
+    "restart_cache": {
+        "description": "重启缓存区",
         "type": "string",
-        "invisible": true
-    },
-    "restart_umo": {
-        "description": "重启命令所在的会话",
-        "type": "string",
-        "invisible": true
-    },
-    "restart_start_ts":{
-        "description": "重启命令发送时间",
-        "type": "float",
-        "invisible": true
+        "items": {
+            "platform_id": {
+                "description": "重启命令所在的平台",
+                "type": "string",
+                "invisible": true
+            },
+            "umo": {
+                "description": "重启命令所在的会话",
+                "type": "string",
+                "invisible": true
+            },
+            "start_ts": {
+                "description": "重启命令发送时间",
+                "type": "float",
+                "invisible": true
+            }
+        }
     }
 }
