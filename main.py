@@ -2,20 +2,22 @@ import asyncio
 import os
 import time
 import zoneinfo
+
 import aiohttp
-from astrbot.api.star import Context, Star, register
-from astrbot.core.config.astrbot_config import AstrBotConfig
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from astrbot.api import logger
 from astrbot.api.event import filter
+from astrbot.api.star import Context, Star
+from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.astr_message_event import AstrMessageEvent
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
     AiocqhttpAdapter,
 )
 
-@register("astrbot_plugin_restart", "Zhalslar", "重启", "...")
+
 class RestartPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -164,7 +166,7 @@ class RestartPlugin(Star):
     @filter.command("重启", alias={"restart"})
     async def restart_system(self, event: AstrMessageEvent):
         """重启astrbot"""
-        yield event.plain_result("正在重启AstrBot...")
+        await event.send(event.plain_result("正在重启AstrBot..."))
 
         self.config["platform_id"] = event.get_platform_id()
         self.config["restart_umo"] = event.unified_msg_origin
@@ -176,7 +178,7 @@ class RestartPlugin(Star):
         try:
             await self.restart_core()
         except Exception as e:
-            yield event.plain_result(f"重启失败：{e}")
+            await event.send(event.plain_result(f"重启失败：{e}"))
             return
 
     @filter.permission_type(filter.PermissionType.ADMIN)
@@ -188,15 +190,15 @@ class RestartPlugin(Star):
         if isinstance(input, str) and ":" in input:
             self.config["restart_time"] = input.strip()
             self.config.save_config()
-            yield event.plain_result(f"已设置定时重启：每天 {input} 重启一次")
+            await event.send(event.plain_result(f"已设置定时重启：每天 {input} 重启一次"))
 
         elif isinstance(input, int):
             self.config["restart_interval"] = int(input)
             self.config.save_config()
-            yield event.plain_result(f"已设置定时重启：每隔 {input} 秒重启一次")
+            await event.send(event.plain_result(f"已设置定时重启：每隔 {input} 秒重启一次"))
 
         else:
-            yield event.plain_result("输入格式错误，请输入 HH:MM 或数字")
+            await event.send(event.plain_result("输入格式错误，请输入 HH:MM 或数字"))
             return
 
         # 重新注册任务
