@@ -13,6 +13,7 @@ from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
     AiocqhttpAdapter,
 )
+from astrbot.core.star.star_manager import PluginManager
 
 from .dashboard_client import DashboardClient
 from .restart_scheduler import RestartScheduler
@@ -23,23 +24,24 @@ class RestartPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.context = context
+        self.star_manager: PluginManager = self.context._star_manager  # type: ignore
         self.config = config
         self.cache: dict[str, Any] = config.get("restart_cache", {})
-        self.scheduler: RestartScheduler | None = None
         self.restart_cron = config.get("restart_cron")
 
     # ================== 生命周期 ==================
 
     async def initialize(self):
         self.dashboard = DashboardClient(self.context)
+        await self.dashboard.initialize()
         self.scheduler = RestartScheduler(self.context, self.config, self.dashboard)
         if self.config["restart_switch"]:
             await self.scheduler.start()
 
     async def terminate(self):
-        if self.scheduler:
-            await self.scheduler.shutdown()
-        logger.info("定时重启插件已终止")
+        await self.dashboard.terminate()
+        await self.scheduler.shutdown()
+        logger.info("重启插件已终止")
 
     # ================== 重启完成通知 ==================
 
@@ -115,11 +117,68 @@ class RestartPlugin(Star):
             yield event.plain_result(
                 f"已开启定时重启: {cron_to_human(self.config['restart_cron'])}"
             )
-            if self.scheduler:
-                await self.scheduler.start()
+            await self.scheduler.start()
         else:
             self.config["restart_switch"] = False
             self.config.save_config()
             yield event.plain_result("已关闭定时重启")
-            if self.scheduler:
-                await self.scheduler.shutdown()
+            await self.scheduler.shutdown()
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("重载")
+    async def reload_plugin(self, event: AstrMessageEvent, target: str | int | None = None):
+        """重载 <插件名|序号|空|all>"""
+        from astrbot.core.star.star import star_registry as sr
+
+        # 过滤内置插件
+        visible = [m for m in sr if not m.reserved]
+        if not visible:
+            yield event.plain_result("暂无插件")
+            return
+
+        # 1. 无参数 -> 展示带序号的插件列表（展示名优先）
+        if target is None:
+            lines = ["需指定插件序号："]
+            for idx, meta in enumerate(visible, start=1):
+                show = meta.display_name or meta.name
+                lines.append(f"{idx}. {show}")
+            await event.send(event.plain_result("\n".join(lines)))
+            return
+
+        # 2. 统一把 target 解析成“内部名” plugin_key
+        plugin_key = None
+        if isinstance(target, int) or str(target).isdigit():
+            idx = int(target) - 1
+            if 0 <= idx < len(visible):
+                plugin_key = visible[idx].name
+            else:
+                yield event.plain_result("序号超出范围")
+                return
+
+        elif str(target).lower() == "all":
+            plugin_key = None
+
+        else:  # 字符串：支持展示名或内部名
+            tgt = str(target)
+            for meta in sr:
+                if tgt in (meta.display_name, meta.name):
+                    plugin_key = meta.name
+                    break
+            if plugin_key is None:
+                yield event.plain_result("未找到该插件")
+                return
+
+        # 3. 真正重载
+        success, error_message = await self.star_manager.reload(plugin_key)
+
+        # 4. 结果回显：优先用展示名，没有再剥前缀
+        if plugin_key is None:
+            show_name = "所有插件"
+        else:
+            if meta := next((m for m in sr if (m.name or m.module_path) == plugin_key), None):
+                show_name = str(meta.display_name or meta.name).removeprefix("astrbot_plugin_")
+
+        if success:
+            yield event.plain_result(f"{show_name}重载成功")
+        else:
+            yield event.plain_result(f"{show_name}重载失败：{error_message}")
