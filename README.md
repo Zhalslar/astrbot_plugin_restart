@@ -14,6 +14,8 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 重启插件 ✨_
 
 </div>
 
+> 注意：Astrbot-v4.24.4更改了部分逻辑，故本插件从v1.1.0开始仅支持Astrbot-v4.24.4之后的版本
+
 ## 🤝 介绍
 
 用命令重启、定时自动重启 AstrBot

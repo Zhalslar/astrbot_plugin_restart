@@ -126,7 +126,9 @@ class RestartPlugin(Star):
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("重载")
-    async def reload_plugin(self, event: AstrMessageEvent, target: str | int | None = None):
+    async def reload_plugin(
+        self, event: AstrMessageEvent, target: str | int | None = None
+    ):
         """重载 <插件名|序号|空|all>"""
         from astrbot.core.star.star import star_registry as sr
 
@@ -161,7 +163,7 @@ class RestartPlugin(Star):
         else:  # 字符串：支持展示名或内部名
             tgt = str(target)
             for meta in sr:
-                if tgt in (meta.display_name, meta.name):
+                if tgt in str(meta.display_name) or tgt in str(meta.name):
                     plugin_key = meta.name
                     break
             if plugin_key is None:
@@ -175,8 +177,12 @@ class RestartPlugin(Star):
         if plugin_key is None:
             show_name = "所有插件"
         else:
-            if meta := next((m for m in sr if (m.name or m.module_path) == plugin_key), None):
-                show_name = str(meta.display_name or meta.name).removeprefix("astrbot_plugin_")
+            if meta := next(
+                (m for m in sr if (m.name or m.module_path) == plugin_key), None
+            ):
+                show_name = str(meta.display_name or meta.name).removeprefix(
+                    "astrbot_plugin_"
+                )
 
         if success:
             yield event.plain_result(f"{show_name}重载成功")
