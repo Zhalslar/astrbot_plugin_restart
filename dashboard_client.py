@@ -24,7 +24,9 @@ class DashboardClient:
         self.stars: list[StarMetadata] = context.get_all_stars()
         self.star_manager = self.context._star_manager
 
-        dbc = context.get_config().get("dashboard", {})
+        # context.get_config() may be None during some startup/restart phases.
+        app_config = context.get_config() or {}
+        dbc = app_config.get("dashboard") or {}
         self.host = dbc.get("host", "127.0.0.1")
         port_value = os.environ.get("DASHBOARD_PORT") or dbc.get("port", 6185)
         self.port = int(port_value)
@@ -79,7 +81,8 @@ class DashboardClient:
 
     def _generate_jwt(self) -> str:
         """为本地 Dashboard 请求生成 JWT。"""
-        dbc = self.context.get_config()["dashboard"]
+        app_config = self.context.get_config() or {}
+        dbc = app_config.get("dashboard") or {}
         username = dbc.get("username")
         jwt_secret = dbc.get("jwt_secret")
         if not username or not jwt_secret:
