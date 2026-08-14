@@ -1,5 +1,5 @@
 {
-    "restart_switch": {
+    "timed_restart": {
         "description": "定时重启开关",
         "hint": "启用后，Astrbot将按照触发周期定时重启。可用命令 “定时重启 开/关”",
         "type": "bool",
@@ -11,12 +11,24 @@
         "hint": "使用 Cron 表达式（分 时 日 月 周）定义。例如：“0 5 * * *” 表示每天 5:00 重启一次Astrbot",
         "default": "0 5 * * *"
     },
-    "show_memory_info": {
-        "description": "重启完后显示内存使用情况",
-        "type": "bool",
-        "default": true
+    "restart_start_message": {
+        "description": "重启开始消息",
+        "type": "string",
+        "default": "正在重启 AstrBot…"
     },
-    "restart_cache": {
+    "restart_message": {
+        "description": "重启完成消息",
+        "hint": "支持占位符：{elapsed}（重启耗时，单位秒）、{memory}（内存使用情况）。不需要显示内存时可删除 {memory}。",
+        "type": "string",
+        "default": "重启完成（耗时{elapsed}秒）\\n内存：{memory}"
+    },
+    "restart_wait_seconds": {
+        "description": "重启完成通知等待时间",
+        "hint": "平台重新加载后，最多等待多少秒再继续尝试发送重启完成通知",
+        "type": "int",
+        "default": 10
+    },
+    "cache": {
         "description": "重启缓存区",
         "type": "object",
         "invisible": true,
@@ -32,6 +44,10 @@
             "start_ts": {
                 "description": "重启命令发送时间",
                 "type": "float"
+            },
+            "scene": {
+                "description": "QQ 官方平台消息场景",
+                "type": "string"
             }
         }
     }

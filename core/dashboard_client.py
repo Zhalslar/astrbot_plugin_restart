@@ -16,7 +16,7 @@ class DashboardClient:
     """
     面板 HTTP 客户端
     - 复用 aiohttp.ClientSession
-    - 本地生成 Dashboard JWT 调用内部接口
+    - 使用 Dashboard JWT 调用内部接口，不再通过用户名密码登录
     """
 
     def __init__(self, context: Context):
@@ -56,10 +56,10 @@ class DashboardClient:
         method: str,
         url: str,
         *,
-        json: dict[str, Any] | None= None,
+        json: dict[str, Any] | None = None,
         **kwargs,
     ) -> dict[str, Any]:
-        """统一网络请求：自动带鉴权、自动续期、自动抛异常"""
+        """统一网络请求：使用本地生成的 Dashboard JWT 鉴权。"""
         if self._session is None:
             raise RuntimeError("请先用 DashboardClient.initialize() 初始化会话")
 
@@ -74,7 +74,9 @@ class DashboardClient:
 
             body = await resp.json()
             if body.get("status") != "ok":
-                raise RuntimeError(f"业务错误: {body.get('message') or body.get('msg')}")
+                raise RuntimeError(
+                    f"业务错误: {body.get('message') or body.get('msg')}"
+                )
             return body.get("data")
 
     def _generate_jwt(self) -> str:

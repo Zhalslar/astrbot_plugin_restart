@@ -1,7 +1,6 @@
 # restart_plugin.py
 import asyncio
 import time
-from typing import Any
 
 from astrbot.api import logger
 from astrbot.api.event import filter
@@ -9,97 +8,148 @@ from astrbot.api.star import Context, Star
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
-from astrbot.core.platform.astr_message_event import AstrMessageEvent
+from astrbot.core.platform.astr_message_event import AstrMessageEvent, MessageSesion
+from astrbot.core.platform.message_type import MessageType
+from astrbot.core.platform.platform import PlatformStatus
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
     AiocqhttpAdapter,
 )
+from astrbot.core.platform.sources.qqofficial.qqofficial_platform_adapter import (
+    QQOfficialPlatformAdapter,
+)
+from astrbot.core.platform.sources.qqofficial_webhook.qo_webhook_adapter import (
+    QQOfficialWebhookPlatformAdapter,
+)
 from astrbot.core.star.star_manager import PluginManager
 
-from .dashboard_client import DashboardClient
-from .restart_scheduler import RestartScheduler
-from .utils import cron_to_human, get_memory_info
+from .core.config import PluginConfig
+from .core.dashboard_client import DashboardClient
+from .core.restart_scheduler import RestartScheduler
+from .core.utils import cron_to_human, get_memory_info
 
 
 class RestartPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.context = context
+        self.cfg = PluginConfig(config, context)
         self.star_manager: PluginManager = self.context._star_manager  # type: ignore
-        self.config = config
-        self.cache: dict[str, Any] = config.get("restart_cache", {})
-        self.restart_cron = config.get("restart_cron")
-
-    # ================== 生命周期 ==================
+        self.dashboard = DashboardClient(context)
+        self.scheduler = RestartScheduler(
+            self.context,
+            self.cfg.restart_cron,
+            self.dashboard,
+        )
 
     async def initialize(self):
-        self.dashboard = DashboardClient(self.context)
         await self.dashboard.initialize()
-        self.scheduler = RestartScheduler(self.context, self.config, self.dashboard)
-        if self.config["restart_switch"]:
+        if self.cfg.timed_restart:
             await self.scheduler.start()
 
     async def terminate(self):
         await self.dashboard.terminate()
         await self.scheduler.shutdown()
-        logger.info("重启插件已终止")
-
-    # ================== 重启完成通知 ==================
 
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
-        platform_id = self.cache.get("platform_id")
-        restart_umo = self.cache.get("umo")
-        restart_start_ts = self.cache.get("start_ts")
-
-        if not restart_umo or not platform_id or not restart_start_ts:
+        if not self.cfg.valid_cache():
             return
 
-        platform = self.context.get_platform_inst(platform_id)
-        if not isinstance(platform, AiocqhttpAdapter):
+        cache = self.cfg.cache
+        platform = self.context.get_platform_inst(cache.platform_id)
+        if platform is None:
             return
-
-        client = platform.get_client()
-        if not client:
-            return
-
-        ws_connected = asyncio.Event()
-
-        @client.on_websocket_connection
-        def _(_):
-            ws_connected.set()
 
         try:
-            await asyncio.wait_for(ws_connected.wait(), timeout=10)
-        except asyncio.TimeoutError:
-            logger.warning("WebSocket 连接等待超时")
+            wait_seconds = max(0, int(self.cfg.restart_wait_seconds or 10))
+        except (TypeError, ValueError):
+            logger.warning("Invalid restart_wait_seconds; fallback to 10 seconds")
+            wait_seconds = 10
 
-        elapsed = time.time() - float(restart_start_ts)
-        msg = f"AstrBot重启完成（耗时{elapsed:.2f}秒）"
+        if isinstance(platform, AiocqhttpAdapter):
+            client = platform.get_client()
+            if not client:
+                return
 
-        if self.config["show_memory_info"]:
-            memory_info = get_memory_info()
-            msg += f"\n内存：{memory_info}"
+            ws_connected = asyncio.Event()
+
+            @client.on_websocket_connection
+            def _(_):
+                ws_connected.set()
+
+            try:
+                await asyncio.wait_for(ws_connected.wait(), timeout=wait_seconds)
+            except asyncio.TimeoutError:
+                logger.warning("WebSocket 连接等待超时")
+        elif isinstance(
+            platform, QQOfficialPlatformAdapter | QQOfficialWebhookPlatformAdapter
+        ):
+            session = MessageSesion.from_str(cache.umo)
+            scene = cache.scene or (
+                "group"
+                if session.message_type == MessageType.GROUP_MESSAGE
+                else "friend"
+            )
+            platform.remember_session_scene(session.session_id, scene)
+            client = platform.get_client()
+            try:
+                deadline = time.monotonic() + wait_seconds
+                while True:
+                    if client._connection:
+                        break
+                    if client.is_closed():
+                        return
+                    if time.monotonic() >= deadline:
+                        logger.warning("QQ 官方机器人连接等待超时")
+                        return
+                    await asyncio.sleep(0.1)
+            except asyncio.CancelledError:
+                raise
+        else:
+            try:
+                deadline = time.monotonic() + wait_seconds
+                while platform.status != PlatformStatus.RUNNING:
+                    if time.monotonic() >= deadline:
+                        logger.warning(
+                            "Platform %s is still not running, using fallback send path",
+                            platform.meta().id,
+                        )
+                        break
+                    await asyncio.sleep(0.1)
+            except asyncio.CancelledError:
+                raise
+
+        elapsed = time.time() - cache.start_ts
+        msg = self.cfg.restart_message.format(
+            elapsed=f"{elapsed:.2f}",
+            memory=get_memory_info(),
+        )
 
         await self.context.send_message(
-            session=restart_umo,
+            session=cache.umo,
             message_chain=MessageChain([Plain(msg)]),
         )
-        self.cache["platform_id"] = ""
-        self.cache["umo"] = ""
-        self.cache["start_ts"] = 0
-        self.config.save_config()
-
-    # ================== 命令 ==================
+        self.cfg.clear_cache()
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("重启", alias={"restart"})
     async def restart_system(self, event: AstrMessageEvent):
         """重启Astrbot"""
-        await event.send(event.plain_result("正在重启 AstrBot…"))
-        self.cache["platform_id"] = event.get_platform_id()
-        self.cache["umo"] = event.unified_msg_origin
-        self.cache["start_ts"] = time.time()
-        self.config.save_config()
+        await event.send(event.plain_result(self.cfg.restart_start_message))
+        cache = self.cfg.cache
+        cache.platform_id = event.get_platform_id()
+        cache.umo = event.unified_msg_origin
+        cache.start_ts = time.time()
+        cache.scene = ""
+        if event.get_platform_name() == "qq_official":
+            raw_message = getattr(event.message_obj, "raw_message", None)
+            if getattr(raw_message, "group_openid", None):
+                cache.scene = "group"
+            elif getattr(raw_message, "channel_id", None):
+                cache.scene = "channel"
+            else:
+                cache.scene = "friend"
+        self.cfg.save_config()
 
         await self.dashboard.restart()
 
@@ -111,16 +161,13 @@ class RestartPlugin(Star):
             await event.send(event.plain_result("正确格式：定时重启 开/关"))
             return
         is_restart = mode == "开"
+        self.cfg.switch_timed_restart(is_restart)
         if is_restart:
-            self.config["restart_switch"] = True
-            self.config.save_config()
             yield event.plain_result(
-                f"已开启定时重启: {cron_to_human(self.config['restart_cron'])}"
+                f"已开启定时重启: {cron_to_human(self.cfg.restart_cron)}"
             )
             await self.scheduler.start()
         else:
-            self.config["restart_switch"] = False
-            self.config.save_config()
             yield event.plain_result("已关闭定时重启")
             await self.scheduler.shutdown()
 
@@ -183,6 +230,8 @@ class RestartPlugin(Star):
                 show_name = str(meta.display_name or meta.name).removeprefix(
                     "astrbot_plugin_"
                 )
+            else:
+                show_name = plugin_key.removeprefix("astrbot_plugin_")
 
         if success:
             yield event.plain_result(f"{show_name}重载成功")
