@@ -83,7 +83,9 @@ class RestartCache(ConfigNode):
 class PluginConfig(ConfigNode):
     timed_restart: bool
     restart_cron: str
-    show_memory: bool
+    restart_start_message: str
+    restart_message: str
+    restart_wait_seconds: int
     cache: RestartCache
 
     def __init__(self, cfg: AstrBotConfig, context: Context):

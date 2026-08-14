@@ -22,16 +22,7 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 重启插件 ✨_
 
 ## 📦 安装
 
-- 可以直接在astrbot的插件市场搜索astrbot_plugin_restart，点击安装，耐心等待安装完成即可
-- 若是安装失败，可以尝试直接克隆源码：
-
-```bash
-# 克隆仓库到插件目录
-cd /AstrBot/data/plugins
-git clone https://github.com/Zhalslar/astrbot_plugin_restart
-
-# 控制台重启AstrBot
-```
+在astrbot的插件市场搜索astrbot_plugin_restart，点击安装即可
 
 ## ⌨️ 使用说明
 
@@ -41,7 +32,6 @@ git clone https://github.com/Zhalslar/astrbot_plugin_restart
 |:-------------:|:-----------------------------------------------:|
 | 重启   | 重启 AstrBot  |
 | 定时重启 HH:MM   | 在指定时间点（如12:30）重启 AstrBot  |
-| 定时重启 <秒数>   |  每隔<秒数>秒重启 AstrBot  |
 
 ### 示例图
 

@@ -10,6 +10,7 @@ from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.astr_message_event import AstrMessageEvent, MessageSesion
 from astrbot.core.platform.message_type import MessageType
+from astrbot.core.platform.platform import PlatformStatus
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_platform_adapter import (
     AiocqhttpAdapter,
 )
@@ -59,6 +60,12 @@ class RestartPlugin(Star):
         if platform is None:
             return
 
+        try:
+            wait_seconds = max(0, int(self.cfg.restart_wait_seconds or 10))
+        except (TypeError, ValueError):
+            logger.warning("Invalid restart_wait_seconds; fallback to 10 seconds")
+            wait_seconds = 10
+
         if isinstance(platform, AiocqhttpAdapter):
             client = platform.get_client()
             if not client:
@@ -71,7 +78,7 @@ class RestartPlugin(Star):
                 ws_connected.set()
 
             try:
-                await asyncio.wait_for(ws_connected.wait(), timeout=10)
+                await asyncio.wait_for(ws_connected.wait(), timeout=wait_seconds)
             except asyncio.TimeoutError:
                 logger.warning("WebSocket 连接等待超时")
         elif isinstance(
@@ -86,26 +93,37 @@ class RestartPlugin(Star):
             platform.remember_session_scene(session.session_id, scene)
             client = platform.get_client()
             try:
-                for i in range(100):
+                deadline = time.monotonic() + wait_seconds
+                while True:
                     if client._connection:
                         break
                     if client.is_closed():
                         return
+                    if time.monotonic() >= deadline:
+                        logger.warning("QQ 官方机器人连接等待超时")
+                        return
                     await asyncio.sleep(0.1)
-                else:
-                    logger.warning("QQ 官方机器人连接等待超时")
-                    return
             except asyncio.CancelledError:
                 raise
         else:
-            return
+            try:
+                deadline = time.monotonic() + wait_seconds
+                while platform.status != PlatformStatus.RUNNING:
+                    if time.monotonic() >= deadline:
+                        logger.warning(
+                            "Platform %s is still not running, using fallback send path",
+                            platform.meta().id,
+                        )
+                        break
+                    await asyncio.sleep(0.1)
+            except asyncio.CancelledError:
+                raise
 
         elapsed = time.time() - cache.start_ts
-        msg = f"AstrBot重启完成（耗时{elapsed:.2f}秒）"
-
-        if self.cfg.show_memory:
-            memory_info = get_memory_info()
-            msg += f"\n内存：{memory_info}"
+        msg = self.cfg.restart_message.format(
+            elapsed=f"{elapsed:.2f}",
+            memory=get_memory_info(),
+        )
 
         await self.context.send_message(
             session=cache.umo,
@@ -117,7 +135,7 @@ class RestartPlugin(Star):
     @filter.command("重启", alias={"restart"})
     async def restart_system(self, event: AstrMessageEvent):
         """重启Astrbot"""
-        await event.send(event.plain_result("正在重启 AstrBot…"))
+        await event.send(event.plain_result(self.cfg.restart_start_message))
         cache = self.cfg.cache
         cache.platform_id = event.get_platform_id()
         cache.umo = event.unified_msg_origin
