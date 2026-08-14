@@ -1,5 +1,5 @@
 {
-    "restart_switch": {
+    "timed_restart": {
         "description": "定时重启开关",
         "hint": "启用后，Astrbot将按照触发周期定时重启。可用命令 “定时重启 开/关”",
         "type": "bool",
@@ -11,12 +11,12 @@
         "hint": "使用 Cron 表达式（分 时 日 月 周）定义。例如：“0 5 * * *” 表示每天 5:00 重启一次Astrbot",
         "default": "0 5 * * *"
     },
-    "show_memory_info": {
+    "show_memory": {
         "description": "重启完后显示内存使用情况",
         "type": "bool",
-        "default": true
+        "default": false
     },
-    "restart_cache": {
+    "cache": {
         "description": "重启缓存区",
         "type": "object",
         "invisible": true,
@@ -32,6 +32,10 @@
             "start_ts": {
                 "description": "重启命令发送时间",
                 "type": "float"
+            },
+            "scene": {
+                "description": "QQ 官方平台消息场景",
+                "type": "string"
             }
         }
     }

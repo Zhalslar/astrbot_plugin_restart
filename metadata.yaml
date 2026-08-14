@@ -2,7 +2,7 @@ name: astrbot_plugin_restart
 display_name: 重启插件
 desc: 用命令重启、定时自动重启 AstrBot，以解决bot长时间运行可能出现的“抽风”或内存泄漏问题
 help: 略
-version: v1.1.0
+version: v1.1.1
 author: Zhalslar
 repo: https://github.com/Zhalslar/astrbot_plugin_restart
 astrbot_version: ">=4.24.4"

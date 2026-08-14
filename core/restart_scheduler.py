@@ -5,7 +5,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.star.context import Context
 
 from .dashboard_client import DashboardClient
@@ -13,12 +12,13 @@ from .dashboard_client import DashboardClient
 
 class RestartScheduler:
     def __init__(
-        self, context: Context, config: AstrBotConfig, dashboard: DashboardClient
+        self,
+        context: Context,
+        restart_cron: str,
+        dashboard: DashboardClient,
     ):
         self.context = context
-        self.config = config
-
-        self.restart_cron = config.get("restart_cron")
+        self.restart_cron = restart_cron
 
         self._scheduler: AsyncIOScheduler | None = None
         self.dashboard = dashboard
@@ -30,8 +30,6 @@ class RestartScheduler:
             logger.warning("时区配置无效，使用默认时区")
             self.tz = None
 
-    # ================== 生命周期 ==================
-
     async def start(self):
         self._scheduler = AsyncIOScheduler(timezone=self.tz)
         self._register_jobs()
@@ -40,8 +38,6 @@ class RestartScheduler:
     async def shutdown(self):
         if self._scheduler:
             self._scheduler.shutdown()
-
-    # ================== job 管理 ==================
 
     def _register_jobs(self):
         scheduler = self._scheduler
@@ -70,8 +66,6 @@ class RestartScheduler:
         )
 
         logger.debug(f"已注册 Cron 自动重启：{self.restart_cron}")
-
-    # ================== 动作 ==================
 
     async def restart(self):
         await self.dashboard.restart()
