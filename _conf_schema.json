@@ -20,7 +20,7 @@
         "description": "重启完成消息",
         "hint": "支持占位符：{elapsed}（重启耗时，单位秒）、{memory}（内存使用情况）。不需要显示内存时可删除 {memory}。",
         "type": "string",
-        "default": "AstrBot重启完成（耗时{elapsed}秒）\n内存：{memory}"
+        "default": "重启完成（耗时{elapsed}秒）\\n内存：{memory}"
     },
     "restart_wait_seconds": {
         "description": "重启完成通知等待时间",
