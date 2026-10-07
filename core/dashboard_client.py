@@ -1,5 +1,6 @@
 # dashboard_client.py
 
+import asyncio
 import datetime
 import os
 from typing import Any
@@ -48,7 +49,11 @@ class DashboardClient:
     # -------------------- 公共接口 --------------------
     async def restart(self) -> None:
         """重启 AstrBot 核心"""
-        await self._request("POST", self.restart_url)
+        try:
+            await self._request("POST", self.restart_url)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            # 重启时服务端会立即关闭连接，ServerDisconnectedError 等属于正常断开现象
+            logger.debug(f"触发重启时连接已断开（正常现象）: {e}")
 
     # -------------------- 内部工具 --------------------
     async def _request(
